@@ -24,22 +24,22 @@ module.exports = function(app){
 			.notEmpty()
 			.len(3,3);
 
-			var errors = req.validationErrors();
+		var errors = req.validationErrors();
 
-			if(errors){
-				console.log("Erros de validação encontrados");
+		if(errors){
+			console.log("Erros de validação encontrados");
 
-				res.status(400).send(errors);
-				return;
-			}
+			res.status(400).send(errors);
+			return;
+		}
 
-			cartao.status = 'AUTORIZADO';
+		cartao.status = 'AUTORIZADO';
 
-			var response = {
-				dados_do_cartao: cartao
-			};
+		var response = {
+			dados_do_cartao: cartao
+		};
 
-			res.status(201).send(response);
+		res.status(201).send(response);
 	});
 
 }
