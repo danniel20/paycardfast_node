@@ -1,7 +1,61 @@
 module.exports = function(app){
 
 	app.get('/pagamentos', function(req, res){
-		res.send("OK");
+
+		var connection = app.persistencia.connectionFactory();
+		var pagamentoDao = new app.persistencia.PagamentoDao(connection);
+
+		pagamentoDao.lista(function(erro, resultado){
+
+			if(erro){
+				res.status(500).send(erro);
+				return;
+			}
+
+			console.log('Todos os pagamentos: ' + JSON.stringify(resultado.rows));
+
+			res.status(200).send(resultado.rows);
+
+			connection.end();
+		});
+
+	});
+
+	app.get('/pagamentos/pagamento/:id', function(req, res){
+
+		var id = req.params.id;
+
+		var memcachedClient = app.servicos.memcachedClient();
+
+		memcachedClient.get('pagamento-'+id, function(erro, retorno){
+
+			if(erro || !retorno){
+				console.log("MISS - chave não encontrada");
+				
+				var connection = app.persistencia.connectionFactory();
+				var pagamentoDao = new app.persistencia.PagamentoDao(connection);
+
+				pagamentoDao.buscaPorId(id, function(erro, resultado){
+
+					if(erro){
+						console.log("erro ao consultar no banco: " + erro);
+						res.status(500).send(erro);
+					}
+					else{
+						console.log("pagamento encontrado: " + JSON.stringify(resultado));
+
+						res.json(resultado);
+					}
+
+					connection.end();
+				});
+			}
+			else{
+				console.log("HIT - valor: " + JSON.stringify(retorno));
+				res.json(retorno);
+			}
+		});
+
 	});
 
 	app.delete('/pagamentos/pagamento/:id', function(req, res){
@@ -19,12 +73,13 @@ module.exports = function(app){
 
 			if(erro){
 				res.status(500).send(erro);
-				return;
 			}
+			else{
+				console.log('Pagamento cancelado');
 
-			console.log('Pagamento cancelado');
-
-			res.status(204).send(pagamento);
+				res.status(204).send(pagamento);
+				
+			}
 
 			connection.end();
 		});
@@ -46,13 +101,21 @@ module.exports = function(app){
 
 			if(erro){
 				res.status(500).send(erro);
-				return;
+			}
+			else{
+				var memcachedClient = app.servicos.memcachedClient();
+
+				memcachedClient.set('pagamento-'+pagamento.id, pagamento, 60000, function(erro){
+					console.log('nova chave adicionada ao cache: pagamento-'+pagamento.id);
+				});
+
+				console.log('Pagamento Confirmado');
+				res.send(pagamento);
+
 			}
 
-			console.log('Pagamento Confirmado');
-			res.send(pagamento);
-
 			connection.end();
+
 		});
 
 	});
@@ -93,6 +156,12 @@ module.exports = function(app){
 
 				console.log('pagamento criado');
 
+				var memcachedClient = app.servicos.memcachedClient();
+
+				memcachedClient.set('pagamento-'+pagamento.id, pagamento, 60000, function(erro){
+					console.log('nova chave adicionada ao cache: pagamento-'+pagamento.id);
+				});
+
 				if(pagamento.forma_de_pagamento == 'cartao'){
 					var cartao = req.body["cartao"];
 					console.log(cartao);
@@ -104,29 +173,30 @@ module.exports = function(app){
 						if(exception){
 							console.log(exception);
 							res.status(400).send(exception);
-							return;
+						}
+						else{
+							res.location("/pagamentos/pagamento/" + pagamento.id);
+						
+							var response = {
+								dados_do_pagamento: pagamento,
+								cartao: retorno,
+								links: [
+									{
+										href: "http://localhost:3000/pagamentos/pagamento/" + pagamento.id,
+										rel: "confirmar",
+										method: "PUT"
+									},
+									{
+										href: "http://localhost:3000/pagamentos/pagamento/" + pagamento.id,
+										rel: "cancelar",
+										method: "DELETE"
+									}
+								]
+							};
+
+							res.status(201).json(response);
 						}
 
-						res.location("/pagamentos/pagamento/" + pagamento.id);
-					
-						var response = {
-							dados_do_pagamento: pagamento,
-							cartao: retorno,
-							links: [
-								{
-									href: "http://localhost:3000/pagamentos/pagamento/" + pagamento.id,
-									rel: "confirmar",
-									method: "PUT"
-								},
-								{
-									href: "http://localhost:3000/pagamentos/pagamento/" + pagamento.id,
-									rel: "cancelar",
-									method: "DELETE"
-								}
-							]
-						};
-
-						res.status(201).json(response);
 					});
 
 				}
