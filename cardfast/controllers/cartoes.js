@@ -4,7 +4,7 @@ module.exports = function(app){
 		console.log("processando pagamento com cartão");
 
 		var cartao = req.body;
-
+/*
 		req.assert("numero", "Número é obrigatório e deve ter 16 caracteres")
 			.notEmpty()
 			.len(16,16);
@@ -27,12 +27,11 @@ module.exports = function(app){
 		var errors = req.validationErrors();
 
 		if(errors){
-			console.log("Erros de validação encontrados");
-
+			console.log("Erros de validação encontrados: " + errors);
 			res.status(400).send(errors);
 			return;
 		}
-
+		*/
 		cartao.status = 'AUTORIZADO';
 
 		var response = {
